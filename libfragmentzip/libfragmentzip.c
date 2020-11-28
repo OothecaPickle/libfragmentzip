@@ -425,17 +425,15 @@ error:
     return NULL;
 }
 
-int fragmentzip_download_to_memory(fragmentzip_t *info, const char *remotepath, char **outBuf, size_t *outSize, fragmentzip_process_callback_t callback){
+int fragmentzip_download_file(fragmentzip_t *info, const char *remotepath, const char *savepath, fragmentzip_process_callback_t callback){
     int err = 0;
     t_downloadBuffer *compressed = NULL;
     fragentzip_local_file *lfile = NULL;
     char *uncompressed = NULL;
+    FILE *f = NULL;
     uint64_t uncompressedSize = 0;
     uint64_t compressedSize = 0;
     uint64_t headerOffset = 0;
-    
-    *outBuf = NULL;
-    *outSize = 0;
 
     fragmentzip_cd *rfile = NULL;
     assure(rfile = fragmentzip_getCDForPath(info, remotepath));
@@ -517,9 +515,10 @@ int fragmentzip_download_to_memory(fragmentzip_t *info, const char *remotepath, 
     
     assure(mycrc32((unsigned char *)uncompressed, uncompressedSize) == rfile->crc32);
     
-    *outBuf = uncompressed; uncompressed = NULL;
-    *outSize = uncompressedSize; uncompressedSize = 0;
-    
+    //file unpacked, now save it
+    assure(f = fopen(savepath, "w"));
+    assure(fwrite(uncompressed, 1, uncompressedSize, f) == uncompressedSize);
+
 error:
     if (compressed){
         safeFree(compressed->buf);
@@ -527,27 +526,11 @@ error:
     }
     safeFree(uncompressed);
     safeFree(lfile);
-    
-    return err;
-}
-
-int fragmentzip_download_file(fragmentzip_t *info, const char *remotepath, const char *savepath, fragmentzip_process_callback_t callback){
-    int err = 0;
-    char *fileBuf = NULL;
-    size_t fileBufSize = 0;
-    FILE *f = NULL;
-
-    if (!(err = fragmentzip_download_to_memory(info, remotepath, &fileBuf, &fileBufSize, callback))){
-        //file unpacked, now save it
-        assure(f = fopen(savepath, "w"));
-        assure(fwrite(fileBuf, 1, fileBufSize, f) == fileBufSize);
-    }
-    
-error:
-    safeFree(fileBuf);
     if (f) fclose(f);
+    
     return err;
 }
+
 
 void fragmentzip_close(fragmentzip_t *info){
     if (info){
